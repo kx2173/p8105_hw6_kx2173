@@ -8,6 +8,8 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(modelr)
+library(purrr)
+library(mgcv)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -65,6 +67,44 @@ plot = birthweight_df %>%
   ) +
   theme(plot.title = element_text(hjust = 0.5))
 
+```
+
+Describe modeling process:
+1. Firstly, load and clean data;
+2. Then I think "mother's weight at delivery (pounds)" and "mother's pre-pregnancy BMI" my influence baby's birth weight, so I use these two variables as the predictors of the model;
+3. Then I drew a "Residuals vs Fitted value Plot". From the plot, residual values are bounce around 0, which means they are evenly distributed around 0. Therefore, it is a reasonable model and I keep this model.
+
+
+Compare your model to two others:
+```{r}
+model_2 = lm(bwt ~ blength + gaweeks, data = birthweight_df)
+model_3 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = birthweight_df)
+
+cv_df = crossv_mc(birthweight_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)) %>% 
+  mutate(
+    mod_1 = map(.x = train, ~lm(bwt ~ ppbmi + delwt, data = .x)),
+    mod_2 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    mod_3 = map(.x = train, ~lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = .x))) %>% 
+  mutate(
+    rmse_1 = map2_dbl(.x = mod_1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_2 = map2_dbl(.x = mod_2, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_3 = map2_dbl(.x = mod_3, .y = test, ~rmse(model = .x, data = .y))) %>%
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin() +
+  labs(title = "RMSEs for Each Model",
+       x = "Model",
+       y = "RMSE") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 
