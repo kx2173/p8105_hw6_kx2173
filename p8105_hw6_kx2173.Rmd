@@ -9,7 +9,7 @@ output: html_document
 library(tidyverse)
 library(modelr)
 library(purrr)
-library(mgcv)
+library(patchwork)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -29,9 +29,9 @@ scale_fill_discrete = scale_fill_viridis_d
 ```
 
 
-# Problem 1
+## Problem 1
 
-Load and clean the data for regression analysis.
+#### Load and clean the data for regression analysis.
 ```{r}
 birthweight_df = read.csv("birthweight_data/birthweight.csv") %>% 
   janitor::clean_names()
@@ -48,7 +48,7 @@ birthweight_df = birthweight_df %>%
   )
 ```
 
-Propose a regression model for birthweight.
+#### Propose a regression model for birthweight.
 ```{r}
 model_1 = lm(bwt ~ ppbmi + delwt, data = birthweight_df) 
 
@@ -75,7 +75,7 @@ Describe modeling process:
 3. Then I drew a "Residuals vs Fitted value Plot". From the plot, residual values are bounce around 0, which means they are evenly distributed around 0. Therefore, it is a reasonable model and I keep this model.
 
 
-Compare your model to two others:
+#### Compare your model to two others:
 ```{r}
 model_2 = lm(bwt ~ blength + gaweeks, data = birthweight_df)
 model_3 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = birthweight_df)
@@ -106,8 +106,86 @@ cv_df = crossv_mc(birthweight_df, 100) %>%
        y = "RMSE") +
   theme(plot.title = element_text(hjust = 0.5))
 ```
+Based on the violin plot, we can find that model 1 has a higher error rate than the other two models and model 3 has the smallest RMSE value. Model 3 is more accurate than model 1 and model 2.
 
 
+## Problem 2
+
+#### Load 2017 Central Park weather data
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+#### Use 5,000 bootstrap samples:
+
+Distribution of $\hat{r}^2$
+```{r}
+bootstrap_rsquared = weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x)),
+    results = map(models, broom::glance)) %>%
+  select(-strap, -models) %>% 
+  unnest(results) %>% 
+  select(.id, r.squared)
+
+plot_rsquared = bootstrap_rsquared %>% 
+  ggplot(aes(x = r.squared)) +
+  geom_density(color = "chocolate1") +
+  labs(
+    title = "R-squared Distribution by Bootstrap",
+    x = "R Squared",
+    y = "Density") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plot_rsquared
+```
+
+Distribution of $log(\hat{\beta}_0 \ast \hat{\beta}_1)$
+```{r}
+bootstrap_logbeta = weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x)),
+    results = map(models, broom::tidy)) %>%
+  unnest(results) %>% 
+  select(.id, term, estimate) %>% 
+  mutate(term = recode(term, `(Intercept)` = "beta0_hat", `tmin` = "beta1_hat")) %>%
+  pivot_wider(
+    names_from = "term",
+    values_from = "estimate") %>% 
+  mutate(log_beta01 = log(beta0_hat * beta1_hat))
+
+plot_logbeta = bootstrap_logbeta %>% 
+  ggplot(aes(x = log_beta01)) +
+  geom_density(color = "chocolate1") +
+  labs(
+    title = "Log_beta Distribution by Bootstrap",
+    x = "Log(β0 * β1)",
+    y = "Density") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+plot_logbeta
+```
+
+Describe the distribution of estimates:
+From these two plots, we can find that both r-squared and log(β0 * β1) are approximately normal distributed. The highest density value for r-squared is between 0.91 and 0.92, which is close to 1 so the data is well fitted with the regression model. The highest density value for log(β0 * β1) is between 2.00 and 2.025.
+
+
+#### Provide 95% confidence interval for the estimates
+```{r}
+
+```
 
 
 
