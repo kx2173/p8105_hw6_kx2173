@@ -184,7 +184,23 @@ From these two plots, we can find that both r-squared and log(β0 * β1) are app
 
 #### Provide 95% confidence interval for the estimates
 ```{r}
+# R-squared confidence interval
+ci_rsquared = bootstrap_rsquared %>% 
+  summarise(
+    ci_lower = quantile(r.squared, 0.025), 
+    ci_upper = quantile(r.squared, 0.975)) %>% 
+  knitr::kable(caption = "95% CI for R-squared", digits = 2)
 
+ci_rsquared
+
+# Log_beta confidence interval
+ci_logbeta = bootstrap_logbeta %>% 
+  summarise(
+    ci_lower = quantile(log_beta01, 0.025), 
+    ci_upper = quantile(log_beta01, 0.975)) %>% 
+  knitr::kable(caption = "95% CI for Log_beta", digits = 2)
+
+ci_logbeta
 ```
 
 
